@@ -153,8 +153,10 @@ def send_update():
         sys.stdout.write("\rPercent: [%s] %.2f%%" % ('' + ' ' * bar_length, current_percent))
         current_percent += percent_step
         sys.stdout.flush()
-        for _message in f.xreadlines():
-            message_json = json.loads(_message)
+        msg = json.load(f)
+        print(json.dumps(msg, indent=1))
+        for message_json in msg:
+#            print("<{}>".format(message_json))
             if message_json['type'] != 2:
                 message_count -= 1
                 continue
