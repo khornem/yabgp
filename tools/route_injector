@@ -139,8 +139,13 @@ def linecount():
 
 
 def send_update():
+
+    msg = None
+    with open(CONF.message.json) as f:
+        msg = json.load(f)
+    
     # get the message count
-    message_count = float(linecount())
+    message_count = float(len(msg))
     url = 'http://{bind_host}:{bind_port}/v1/peer/{peer_ip}/send/update'
     url = url.format(bind_host=CONF.rest.host, bind_port=CONF.rest.port, peer_ip=CONF.peerip)
     bar_length = 50
@@ -149,50 +154,47 @@ def send_update():
     send_failed = 0
     current_percent = 0.00
     percent_step = 0.01
-    with open(CONF.message.json) as f:
-        sys.stdout.write("\rPercent: [%s] %.2f%%" % ('' + ' ' * bar_length, current_percent))
-        current_percent += percent_step
-        sys.stdout.flush()
-        msg = json.load(f)
-        print(json.dumps(msg, indent=1))
-        for message_json in msg:
-#            print("<{}>".format(message_json))
-            if message_json['type'] != 2:
-                message_count -= 1
-                continue
-            message = message_json['msg']
-            if message['nlri']:
-                if CONF.attribute.no_origin_cluster:
-                    if message['attr'].get('9'):
-                        message['attr'].pop('9')
-                    if message['attr'].get('10'):
-                        message['attr'].pop('10')
-                elif CONF.attribute.originator_id and CONF.attribute.cluster_list:
-                    message['attr']['9'] = CONF.attribute.originator_id
-                    message['attr']['10'] = CONF.attribute.cluster_list
-                if CONF.attribute.nexthop:
-                    message['attr']['3'] = CONF.attribute.nexthop
-                post_data = {
-                    'nlri': message['nlri'],
-                    'attr': message['attr']
-                }
-                res = get_data_from_agent(url, 'admin', 'admin', 'POST', post_data)
-                if res:
-                    send_success += 1
-                    interval()
-                else:
-                    send_failed += 1
-                while message_pass_send/message_count >= current_percent/100:
-                    hashes = '#' * int(message_pass_send/message_count * bar_length)
-                    spaces = ' ' * (bar_length - len(hashes))
-                    sys.stdout.write("\rPercent: [%s] %.2f%%" % (hashes + spaces, current_percent))
-                    sys.stdout.flush()
-                    current_percent += percent_step
-                message_pass_send += 1
+
+    sys.stdout.write("\rPercent: [%s] %.2f%%" % ('' + ' ' * bar_length, current_percent))
+    current_percent += percent_step
+    sys.stdout.flush()
+    for message_json in msg:
+        if message_json['type'] != 2:
+            message_count -= 1
+            continue
+        message = message_json['msg']
+        if message['nlri']:
+            if CONF.attribute.no_origin_cluster:
+                if message['attr'].get('9'):
+                    message['attr'].pop('9')
+                if message['attr'].get('10'):
+                    message['attr'].pop('10')
+            elif CONF.attribute.originator_id and CONF.attribute.cluster_list:
+                message['attr']['9'] = CONF.attribute.originator_id
+                message['attr']['10'] = CONF.attribute.cluster_list
+            if CONF.attribute.nexthop:
+                message['attr']['3'] = CONF.attribute.nexthop
+            post_data = {
+                'nlri': message['nlri'],
+                'attr': message['attr']
+            }
+            res = get_data_from_agent(url, 'admin', 'admin', 'POST', post_data)
+            if res:
+                send_success += 1
+                interval()
             else:
-                # TODO support other address family
-                message_count -= 1
-                continue
+                send_failed += 1
+            while message_pass_send/message_count >= current_percent/100:
+                hashes = '#' * int(message_pass_send/message_count * bar_length)
+                spaces = ' ' * (bar_length - len(hashes))
+                sys.stdout.write("\rPercent: [%s] %.2f%%" % (hashes + spaces, current_percent))
+                sys.stdout.flush()
+                current_percent += percent_step
+            message_pass_send += 1
+        else:
+            # TODO support other address family
+            message_count -= 1
+            continue
     hashes = '#' * bar_length
     spaces = ''
     sys.stdout.write("\rPercent: [%s] %.2f%%"%(hashes + spaces, 100.00))
